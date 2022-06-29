@@ -1,65 +1,82 @@
-const axios = require('axios')
+const axios = require("axios")
+const mongoose = require("mongoose")
+const Movie = require("./moviesModel")
 
-const COUNT_OF_PAGES = 10
-const COUNT_OF_MOVIES_ON_PAGE = 50
+mongoose.connect('mongodb://127.0.0.1:27017/movies', { useUnifiedTopology: true, useNewUrlParser: true })
+    .then(() => console.log('MongoDB подключена'))
+    .catch(error => console.log(error))
 
 const fetchMoviePlayer = async () => {
     let movies = []
-
-    for (let page = 0; page < COUNT_OF_PAGES; page++) {
+    var url = 'https://pleer.video/movies.json'
+    while(url){
         const response = await axios.request( {
-            url: 'https://videocdn.tv/api/movies',
+            url: url,
             method: 'get',
-            params: {
-                page,
-                limit: COUNT_OF_MOVIES_ON_PAGE,
-                api_token: 'LSQuzDpZeVxKP4EWfzCKAUMhTy2Zj3XS'
-            }
         })
-
-        movies.push(...response.data.data)
+        movies.push(...response.data["results"])
+        url = response.data["pages"]["url"]["next"]
     }
-
     return movies
 }
 
 const formatMoviesData = async () => {
     const movies = await fetchMoviePlayer()
-    let result = []
-
-    for (let movie of movies) {
-        const response = await axios.request({
-            url: `https://kinopoiskapiunofficial.tech/api/v2.1/films/${movie.kinopoisk_id}`,
-            method: 'get',
-            params: {
-                'append_to_response': 'RATING',
-            },
-            headers: {
-                'X-API-KEY': '62d26150-2088-4c42-946e-c4ae522967bb',
+    let films = []
+    for(let film of movies){
+        try{
+            const response = await axios.request( {
+                url: film["json"],
+                method: 'get',
+            })
+            const film_json = response.data
+            let poster = "https://cinexus.kz/images/posters/posts_none.png"
+            if(film_json.poster === 1){
+                poster = film.json.replace("json", "jpg")
             }
-        })
 
-        const { data } = response.data
-        const { rating } = response.data
-
-        result.push({
-            title_ru: data.nameRu,
-            title_en: data.nameEn,
-            kinopoisk_id: data.filmId,
-            poster: data.posterUrl,
-            year: data.year,
-            slogan: data.slogan,
-            description: data.description,
-            type: data.type,
-            time: data.filmLength,
-            genres: data.genres.map(genre => genre.genre),
-            countries: data.countries.map(country => country.country),
-            rating: rating.rating,
-            player: movie.preview_iframe_src
-        })
+            films.push({
+                kp_id: film_json.kp_id,
+                title_ru: film_json.title_ru,
+                title_en: film_json.title_en,
+                year: film_json.year,
+                countries: film_json.countries.split(","),
+                producer: film_json.directors,
+                genres: film_json.genres.split(","),
+                actors: film_json.actors,
+                description: film_json.description,
+                premiere: film_json.premiere,
+                kp_rating: film_json.kp_rating,
+                imdb_rating: film_json.imdb_rating,
+                poster: poster,
+                player: film_json.embeds[0].iframe
+                
+            })
+            console.log("Фильм найден")
+            const movie_model = await Movie.create({
+                kp_id: film_json.kp_id,
+                title_ru: film_json.title_ru,
+                title_en: film_json.title_en,
+                year: film_json.year,
+                countries: film_json.countries.split(","),
+                producer: film_json.directors,
+                genres: film_json.genres.split(","),
+                actors: film_json.actors,
+                description: film_json.description,
+                premiere: film_json.premiere,
+                kp_rating: film_json.kp_rating,
+                imdb_rating: film_json.imdb_rating,
+                poster: poster,
+                player: film_json.embeds[0].iframe
+            })
+            
+        }
+        catch(error){
+            console.log("Фильм не найден")
+        }
+        
     }
-
-    console.log(result)
+    console.log(films)
 }
 
 formatMoviesData()
