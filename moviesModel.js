@@ -37,10 +37,10 @@ const movieShcheme = new Schema({
     premiere: {
         type: String,
     },
-    kp_rating: {
+    rating: {
         type: Number,
     },
-    imdb_rating: {
+    vote: {
         type: Number,
     },
     poster: {
